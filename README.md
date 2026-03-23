@@ -1,70 +1,168 @@
-# igaltal-Machine-Learning - Decision Tree Project
+# Decision Tree from Scratch
 
-Project Description
--------------------
-This project involves building a Decision Tree classifier from scratch. The classifier can use different impurity measures (Gini and Entropy) and supports pruning techniques such as depth pruning and chi-square pruning. The project also includes functions for evaluating the accuracy of the decision tree on training and validation datasets.
+A Decision Tree classifier built from scratch in Python, without using sklearn's tree implementation. Supports Gini and Entropy impurity measures, gain ratio splitting, depth pruning, and chi-square pre-pruning. Comes with an interactive web UI and a command-line runner. Applied to the UCI Mushroom dataset to classify mushrooms as edible or poisonous.
 
-Project Structure
------------------
-- chi_table: A dictionary containing chi-square critical values for different degrees of freedom and p-values.
-- calc_gini(data): Function to calculate the Gini impurity of a dataset.
-- calc_entropy(data): Function to calculate the entropy of a dataset.
-- DecisionNode: A class representing a node in the decision tree.
-    - __init__(self, data, impurity_func, feature=-1, depth=0, chi=1, max_depth=1000, gain_ratio=False): Initializes a decision node.
-    - calc_node_pred(self): Calculates the prediction of the node.
-    - add_child(self, node, val): Adds a child node.
-    - calc_feature_importance(self, n_total_sample): Calculates the feature importance.
-    - goodness_of_split(self, feature): Calculates the goodness of split for a given feature.
-    - split(self): Splits the current node based on the impurity function.
-- DecisionTree: A class representing the decision tree.
-    - __init__ Initializes the decision tree.
-    - build_tree(self): Builds the decision tree.
-    - predict(self, instance): Predicts the class label for a given instance.
-    - calc_accuracy(self, dataset): Calculates the accuracy of the decision tree on a given dataset.
-    - depth(self): Returns the depth of the tree.
-- depth_pruning(X_train, X_validation): Function to calculate training and validation accuracies for different depths using the best impurity function and gain ratio.
-- chi_pruning(X_train, X_test): Function to calculate training and validation accuracies for different chi values using the best impurity function and gain ratio.
-- count_nodes(node): Function to count the number of nodes in the decision tree.
+---
 
-Dependencies
-------------
-- numpy
-- matplotlib
+## Quickstart
 
-Usage
------
-1. Import the necessary functions and classes from the project.
-2. Load your dataset into a numpy array.
-3. Create an instance of the DecisionTree class with the desired impurity function, chi value, maximum depth, and gain ratio flag.
-4. Build the tree using the build_tree method.
-5. Predict the class label for new instances using the predict method.
-6. Evaluate the accuracy of the decision tree using the calc_accuracy method.
-7. Use depth_pruning and chi_pruning functions to experiment with different pruning techniques.
+### 1. Install dependencies
 
-Example
--------
 ```
+pip install numpy pandas matplotlib scikit-learn streamlit
+```
+
+### 2. Launch the web UI
+
+```
+streamlit run app.py
+```
+
+This opens the app in your browser automatically. That is the recommended way to use this project.
+
+### 3. Or run from the command line
+
+```
+python run.py
+```
+
+---
+
+## Running the web UI
+
+```
+streamlit run app.py
+```
+
+The sidebar lets you configure everything. The main area has four tabs:
+
+| Tab | What it shows |
+|-----|---------------|
+| Dataset | Row count, class distribution pie chart, data preview |
+| Model & Results | Accuracy metrics, feature importance chart, single-row prediction |
+| Depth Pruning | Accuracy vs max depth (1-10), results table |
+| Chi-Square Pruning | Accuracy vs p-value, tree depth per configuration, results table |
+
+**Sidebar controls:**
+
+| Control | Description |
+|---------|-------------|
+| Upload CSV | Use your own dataset. Last column must be the class label. Leave empty to use the default mushroom dataset. |
+| Label column name | Name of the target column (default: `class`) |
+| Train / val split seed | Random seed for reproducibility |
+| Impurity function | Entropy or Gini |
+| Use gain ratio | Normalises information gain to reduce bias towards high-cardinality features |
+| Unlimited depth | When checked, the tree grows until all leaves are pure |
+| Max depth | Active only when unlimited depth is unchecked. Range 1-20. |
+| Chi-square p-value | Significance threshold for pre-pruning. `1` disables pruning entirely. Lower values produce smaller trees. |
+| Train | Builds a single tree with the current configuration |
+| Experiments | Runs both the depth pruning and chi-square pruning sweeps |
+
+---
+
+## Running from the command line
+
+```
+python run.py
+```
+
+Options:
+
+```
+python run.py                        # full evaluation: compare all configs + both pruning sweeps
+python run.py --depth-only           # depth pruning experiment only
+python run.py --chi-only             # chi-square pruning experiment only
+python run.py --data path/to/file    # use a different CSV file
+python run.py --no-plots             # skip matplotlib plots (useful in headless environments)
+```
+
+Plots are saved as `depth_pruning.png` and `chi_pruning.png` in the working directory.
+
+---
+
+## Using the API directly
+
+```python
 import numpy as np
-from decision_tree import DecisionTree, calc_gini, calc_entropy, depth_pruning, chi_pruning
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from hw2 import DecisionTree, calc_gini, calc_entropy, depth_pruning, chi_pruning, count_nodes
 
-# Load your dataset
-data = np.array([...])  # Replace with your dataset
+# Load data (last column must be the label)
+data = pd.read_csv('agaricus-lepiota.csv').dropna(axis=1)
+X, y = data.drop('class', axis=1), data['class']
+X = np.column_stack([X, y])
+X_train, X_val = train_test_split(X, random_state=99)
 
-# Create a decision tree instance
-tree = DecisionTree(data=data, impurity_func=calc_entropy, max_depth=10, gain_ratio=True)
-
-# Build the tree
+# Build a tree
+tree = DecisionTree(data=X_train, impurity_func=calc_entropy, gain_ratio=True)
 tree.build_tree()
 
-# Predict class labels for new instances
-prediction = tree.predict(new_instance)
+# Evaluate
+print(tree.calc_accuracy(X_train))   # training accuracy (%)
+print(tree.calc_accuracy(X_val))     # validation accuracy (%)
+print(tree.depth())                  # max depth of the tree
+print(count_nodes(tree.root))        # total number of nodes
 
-# Evaluate accuracy
-accuracy = tree.calc_accuracy(validation_data)
+# Predict a single instance
+prediction = tree.predict(X_val[0])
 
-# Perform depth pruning
-train_acc, val_acc = depth_pruning(X_train, X_validation)
-
-# Perform chi-square pruning
-chi_train_acc, chi_val_acc, depths = chi_pruning(X_train, X_test)
+# Pruning experiments
+train_accs, val_accs = depth_pruning(X_train, X_val)           # sweep max_depth 1-10
+chi_train, chi_val, depths = chi_pruning(X_train, X_val)       # sweep 6 p-values
 ```
+
+---
+
+## Project structure
+
+```
+.
+├── app.py                  # Streamlit web UI
+├── run.py                  # Command-line runner
+├── hw2.py                  # Core implementation
+├── hw2.ipynb               # Jupyter notebook with step-by-step walkthrough
+└── agaricus-lepiota.csv    # UCI Mushroom dataset
+```
+
+### hw2.py — what is implemented
+
+| Component | Description |
+|-----------|-------------|
+| `calc_gini(data)` | Gini impurity of a dataset |
+| `calc_entropy(data)` | Entropy of a dataset |
+| `DecisionNode` | A single node in the tree. Handles splitting, chi-square pruning, and feature importance. |
+| `DecisionTree` | Wraps the root node. Builds the tree, predicts, and calculates accuracy. |
+| `depth_pruning(X_train, X_val)` | Trains 10 trees with max_depth 1-10, returns accuracy lists |
+| `chi_pruning(X_train, X_val)` | Trains 6 trees with different chi p-values, returns accuracy lists and depths |
+| `count_nodes(node)` | Counts total nodes in a tree |
+
+---
+
+## DecisionTree parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `data` | np.ndarray | required | Training data. Last column must be the class label. |
+| `impurity_func` | function | required | `calc_gini` or `calc_entropy` |
+| `chi` | float | `1` | Chi-square p-value threshold. `1` = no pruning. Options: `1`, `0.5`, `0.25`, `0.1`, `0.05`, `0.0001` |
+| `max_depth` | int | `1000` | Maximum tree depth. `1000` is effectively unlimited. |
+| `gain_ratio` | bool | `False` | Use gain ratio instead of raw information gain when selecting the best split feature |
+
+---
+
+## Dataset
+
+The UCI Mushroom dataset contains 8124 samples from 23 species of gilled mushrooms. Each sample has 21 categorical features (cap shape, odor, gill color, etc.) and a binary label: edible or poisonous. The dataset is split 75/25 into training (6093 samples) and validation (2031 samples).
+
+---
+
+## Results summary
+
+| Configuration | Train accuracy | Validation accuracy |
+|---------------|---------------|---------------------|
+| Gini, gain ratio off | ~99.4% | ~77.5% |
+| Entropy, gain ratio off | ~99.5% | ~77.3% |
+| Entropy, gain ratio on | ~99.8% | ~78.5% |
+
+Entropy with gain ratio gives the best validation accuracy and is used as the default in all pruning experiments.

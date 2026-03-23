@@ -229,9 +229,32 @@ class DecisionNode:
                 best_feature = feature
                 best_split = groups
 
-        if best_feature is None:
+        if best_feature is None or best_gain <= 0:
             self.terminal = True
             return
+
+        # Chi-square pruning: test whether the best split is statistically significant.
+        # self.chi == 1 means no pruning (p-value threshold of 1 accepts everything).
+        if self.chi != 1:
+            labels = np.unique(self.data[:, -1])
+            num_values = len(best_split)
+            num_classes = len(labels)
+            df = (num_values - 1) * (num_classes - 1)
+            df = min(df, 11)  # chi_table only goes up to df=11
+            if df >= 1 and df in chi_table and self.chi in chi_table[df]:
+                total = len(self.data)
+                chi_stat = 0.0
+                for subset in best_split.values():
+                    n_v = len(subset)
+                    for label in labels:
+                        p_y = len(self.data[self.data[:, -1] == label]) / total
+                        expected = n_v * p_y
+                        observed = len(subset[subset[:, -1] == label])
+                        if expected > 0:
+                            chi_stat += (observed - expected) ** 2 / expected
+                if chi_stat < chi_table[df][self.chi]:
+                    self.terminal = True
+                    return
 
         self.feature = best_feature
         for value, subset in best_split.items():
@@ -270,6 +293,14 @@ class DecisionTree:
                                  gain_ratio=self.gain_ratio)
         if not self.root.terminal:
             self.root.split()
+
+        # Calculate feature importance for every internal node after the tree is built.
+        n_total = len(self.data)
+        queue = [self.root]
+        while queue:
+            node = queue.pop(0)
+            node.calc_feature_importance(n_total)
+            queue.extend(node.children)
 
     def predict(self, instance):
         """
@@ -318,7 +349,15 @@ class DecisionTree:
         return accuracy
 
     def depth(self):
-        return self.root.depth()
+        if self.root is None:
+            return 0
+
+        def _max_depth(node):
+            if not node.children:
+                return node.depth
+            return max(_max_depth(child) for child in node.children)
+
+        return _max_depth(self.root)
 
 
 def depth_pruning(X_train, X_validation):
@@ -376,7 +415,7 @@ def chi_pruning(X_train, X_test):
         accuracy_test = tree.calc_accuracy(X_test)
         chi_training_acc.append(accuracy_train)
         chi_testing_acc.append(accuracy_test)
-        tree_depth = tree.depth
+        tree_depth = tree.depth()
         depths.append(tree_depth)
 
     return chi_training_acc, chi_testing_acc, depths

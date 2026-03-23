@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show:*)",
+      "Bash(python -c \"import streamlit; print\\(streamlit.__version__\\)\")",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(source myenv/bin/activate)",
+      "Bash(python3 -m pip install streamlit --quiet)",
+      "Bash(python3 -m pip install streamlit --break-system-packages --quiet)",
+      "Bash(python3:*)"
+    ]
+  }
+}
